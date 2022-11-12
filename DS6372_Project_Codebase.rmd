@@ -1,0 +1,69 @@
+---
+title: "MSDS-6372-Project2"
+author: "Holmes, Karki, Webb"
+date: '11/12/2022'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Set-up
+__Libraries__
+```{r load-packages, include=FALSE}
+## Source - https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
+# Package names
+packages <- c("aplore3", "tidyverse")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+```{r echo=FALSE}
+packages
+```
+__Data Import__
+```{r}
+df <- glow_bonemed
+```
+
+__EDA__
+```{r}
+```
+
+
+### Objective 1
+Display the ability to perform EDA and build a logistic regression model for interpretation purposes.
+__Simple Logistic Regression__
+```{r}
+
+```
+
+### Objective 2
+With a simple logistic regression model as a baseline, perform additional competing models to improve on prediction performance metrics.
+__Complex Logistic Regression__
+```{r}
+```
+
+__LDA/QDA__
+```{r}
+```
+
+__KNN__
+```{r}
+```
+
+
+
+
+
+
+
