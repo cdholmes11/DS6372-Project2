@@ -14,8 +14,7 @@ __Libraries__
 ```{r load-packages, include=FALSE}
 ## Source - https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
 # Package names
-packages <- c("aplore3", "tidyverse")
-packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret")
+packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret", "naniar", "GGally")
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -34,16 +33,9 @@ packages
 __Data Import__
 ```{r}
 df <- glow_bonemed
-<<<<<<< Updated upstream
 summary(df) ## ratio of response (fracture) is 3:1 No to Yes
 str(df)
-
-library(naniar)
 gg_miss_var(df) ## no missing data
-
-
-=======
-head(df)
 
 # New column for numeric fracture
 df$frac_num <- ifelse(df$fracture == "Yes", 1, 0)
@@ -66,7 +58,6 @@ df %>%
   group_by(fracture) %>%
   summarize(count = n()) %>%
   mutate(percent = count / sum(count))
->>>>>>> Stashed changes
 ```
 
 __EDA__
@@ -245,21 +236,20 @@ __Train, Test, Validation Split__
 ```{r}
 set.seed(123)
 # Split data into smaller sets: 80% training, 10% test, and 10% validate
-ss <- sample(1:3,size=nrow(df),replace=TRUE,prob=c(0.8,0.1,0.1))
-train <- df[ss==1,]
-test <- df[ss==2,]
-valid <-df[ss==3,]
+ss <- sample(1:3, size = nrow(df), replace = TRUE, prob = c(0.8, 0.1, 0.1))
+train <- df[ss == 1, ]
+test <- df[ss == 2, ]
+valid <- df[ss == 3, ]
 ```
 
 ### Objective 1
 Display the ability to perform EDA and build a logistic regression model for interpretation purposes.
 __Simple Logistic Regression__
 ```{r}
-
 # Removing BMI and Fracscore due to multicollinearity
 train_sub <-
   train %>%
-  select(-c('sub_id', 'bmi', 'fracscore', 'frac_num', 'smoke', 'momfrac'))
+  select(-c("sub_id", "bmi", "fracscore", "frac_num", "smoke", "momfrac"))
 
 # Logistic Model
 log_model <- glm(fracture ~ ., data = train_sub, family = "binomial")
@@ -287,7 +277,9 @@ BIC(glm_both)
 glm_both$coefficients
 
 # Final Model
-log_model <- glm(fracture ~ priorfrac + age + height + bonemed_fu + bonetreat, data = train_sub, family = "binomial")
+log_model <-
+  glm(fracture ~ priorfrac + age + height + bonemed_fu + bonetreat,
+  data = train_sub, family = "binomial")
 summary(log_model)
 
 # Predict test data based on model
@@ -313,13 +305,11 @@ __Complex Logistic Regression__
 
 __LDA/QDA__ ## only on numeric variables
 ```{r}
-library(GGally)
-dflda<- df[c("age","weight","height","bmi","fracscore","fracture")]
+lda_train <- train[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+lda_test <- test[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+lda_valid <- valid[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
 ##View(dflda)
-ggpairs(dflda,aes(color = fracture))
-
-
-
+ggpairs(lda_train, aes(color = fracture))
 ```
 
 ##splitting data
@@ -340,32 +330,33 @@ valid$fracture
 
 
 ```{r}
-library(caret)
-
 fitControl<-trainControl(method="repeatedcv",number=5,repeats=1,classProbs=TRUE, summaryFunction=mnLogLoss)
 
-lda.fit<-train(fracture~.,
-               data=train,
-               method="lda",
-               trControl=fitControl,
-               metric="logLoss")
+lda.fit <- train(fracture ~ .,
+  data = lda_train,
+  method = "lda",
+  trControl = fitControl,
+  metric = "logLoss"
+)
 lda.fit
 
-qda.fit<-train(fracture~.,
-               data=train,
-               method="qda",
-               trControl=fitControl,
-               metric="logLoss")
+qda.fit <- train(fracture ~ .,
+  data = lda_train,
+  method = "qda",
+  trControl = fitControl,
+  metric = "logLoss"
+)
 
 qda.fit
 
 set.seed(1234)
-knn.fit<-train(fracture~.,
-               data=train,
-                    method="knn",
-                    trControl=fitControl,
-                    tuneGrid=data.frame(k=c(1,5,10,15,25,50,100,200,300,400)),
-                    metric="logLoss")
+knn.fit <- train(fracture ~ .,
+  data = lda_train,
+  method = "knn",
+  trControl = fitControl,
+  tuneGrid = data.frame(k = c(1, 5, 10, 15, 25, 50, 100, 200, 300, 400)),
+  metric = "logLoss"
+)
 
 knn.fit
 
@@ -375,13 +366,11 @@ plot(knn.fit)
 
 
 ```{r}
-predictions <- data.frame(status = valid$fracture)
-predictions$knn <- predict(knn.fit, valid, type = "prob")[,"No"]
-predictions$LDA <- predict(lda.fit, valid, type = "prob")[,"No"]
-predictions$QDA <- predict(qda.fit, valid, type = "prob")[,"No"]
+predictions <- data.frame(status = lda_valid$fracture)
+predictions$knn <- predict(knn.fit, lda_valid, type = "prob")[, "No"]
+predictions$LDA <- predict(lda.fit, lda_valid, type = "prob")[, "No"]
+predictions$QDA <- predict(qda.fit, lda_valid, type = "prob")[, "No"]
 View(predictions)
-
-
 ```
 
 
