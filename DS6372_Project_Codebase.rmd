@@ -15,6 +15,7 @@ __Libraries__
 ## Source - https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
 # Package names
 packages <- c("aplore3", "tidyverse")
+packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret")
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -33,6 +34,7 @@ packages
 __Data Import__
 ```{r}
 df <- glow_bonemed
+<<<<<<< Updated upstream
 summary(df) ## ratio of response (fracture) is 3:1 No to Yes
 str(df)
 
@@ -40,18 +42,266 @@ library(naniar)
 gg_miss_var(df) ## no missing data
 
 
+=======
+head(df)
+
+# New column for numeric fracture
+df$frac_num <- ifelse(df$fracture == "Yes", 1, 0)
+table(df$frac_num, df$fracture)
+
+# New data frames for Numeric and Categorical
+num_df <-
+  df %>%
+  select(is.numeric)
+str(num_df)
+
+cat_df <-
+  df %>%
+  select_if(negate(is.numeric))
+str(cat_df)
+
+# Variable Analysis
+df %>%
+  select(fracture) %>%
+  group_by(fracture) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count / sum(count))
+>>>>>>> Stashed changes
 ```
 
 __EDA__
 ```{r}
+# Numeric Variables
+df %>%
+  ggplot(aes(x = age, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Age vs Fracture")
+
+df %>%
+  ggplot(aes(x = weight, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Weight vs Fracture")
+
+df %>%
+  ggplot(aes(x = height, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Height vs Fracture")
+
+df %>%
+  ggplot(aes(x = bmi, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("BMI vs Fracture")
+
+df %>%
+  ggplot(aes(x = fracscore, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Fracscore vs Fracture")
+
+# Correlation
+M <- cor(num_df[, 1:8])
+corrplot.mixed(M, lower = 'number', upper = 'ellipse', order = 'alphabet')
+
+model <- lm(frac_num ~ ., data = df[, -c(15)])
+vif(model)
 ```
 
+```{r}
+# Categorical Variables
+g1 <-
+  df %>%
+  group_by(fracture, priorfrac) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g1
+
+g1[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(priorfrac, -perc), y = perc, color = priorfrac)) +
+  geom_bar(aes(fill = priorfrac), stat = "identity") +
+  xlab("Prior Fracture") +
+  ylab("Proportion")
+
+g2 <-
+  df %>%
+  group_by(fracture, premeno) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g2
+
+g2[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(premeno, -perc), y = perc, color = premeno)) +
+  geom_bar(aes(fill = premeno), stat = "identity") +
+  xlab("Premeno") +
+  ylab("Proportion")
+
+g3 <-
+  df %>%
+  group_by(fracture, momfrac) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+  ylab("Proportion")
+g3
+
+g3[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(momfrac, -perc), y = perc, color = momfrac)) +
+  geom_bar(aes(fill = momfrac), stat = "identity") +
+  xlab("Momfrac") +
+  ylab("Proportion")
+
+g4 <-
+  df %>%
+  group_by(fracture, armassist) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g4
+
+g4[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(armassist, -perc), y = perc, color = armassist)) +
+  geom_bar(aes(fill = armassist), stat = "identity") +
+  xlab("Armassist") +
+  ylab("Proportion")
+
+
+g5 <-
+  df %>%
+  group_by(fracture, smoke) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g5
+
+g5[c(1, 4), ] %>%
+  ggplot(aes(x = reorder(smoke, -perc), y = perc, color = smoke)) +
+  geom_bar(aes(fill = smoke), stat = "identity") +
+  xlab("Smoke") +
+  ylab("Proportion")
+
+g6 <-
+  df %>%
+  group_by(fracture, raterisk) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g6
+
+g6[c(1, 2, 6), ] %>%
+  ggplot(aes(x = reorder(raterisk, -perc), y = perc, color = raterisk)) +
+  geom_bar(aes(fill = raterisk), stat = "identity") +
+  xlab("Raterisk") +
+  ylab("Proportion")
+
+g7 <-
+  df %>%
+  group_by(fracture, bonemed) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g7
+
+g7[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(bonemed, -perc), y = perc, color = bonemed)) +
+  geom_bar(aes(fill = bonemed), stat = "identity") +
+  xlab("Bonemed") +
+  ylab("Proportion")
+
+g8 <-
+  df %>%
+  group_by(fracture, bonemed_fu) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g8
+
+g8[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(bonemed_fu, -perc), y = perc, color = bonemed_fu)) +
+  geom_bar(aes(fill = bonemed_fu), stat = "identity") +
+  xlab("Bonemed_fu") +
+  ylab("Proportion")
+
+g8 <-
+  df %>%
+  group_by(fracture, bonetreat) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(desc(perc))
+g8
+
+g8[c(2, 3), ] %>%
+  ggplot(aes(x = reorder(bonetreat, -perc), y = perc, color = bonetreat)) +
+  geom_bar(aes(fill = bonetreat), stat = "identity") +
+  xlab("Bonetreat") +
+  ylab("Proportion")
+```
+
+__Train, Test, Validation Split__
+```{r}
+set.seed(123)
+# Split data into smaller sets: 80% training, 10% test, and 10% validate
+ss <- sample(1:3,size=nrow(df),replace=TRUE,prob=c(0.8,0.1,0.1))
+train <- df[ss==1,]
+test <- df[ss==2,]
+valid <-df[ss==3,]
+```
 
 ### Objective 1
 Display the ability to perform EDA and build a logistic regression model for interpretation purposes.
 __Simple Logistic Regression__
 ```{r}
 
+# Removing BMI and Fracscore due to multicollinearity
+train_sub <-
+  train %>%
+  select(-c('sub_id', 'bmi', 'fracscore', 'frac_num', 'smoke', 'momfrac'))
+
+# Logistic Model
+log_model <- glm(fracture ~ ., data = train_sub, family = "binomial")
+coef(summary(log_model))
+
+glm_back <- step(log_model, direction = "backward")
+glm_fwd <- step(log_model, direction = "forward")
+glm_both <- step(log_model, direction = "both")
+
+summary(glm_back)
+glm_back$deviance
+AIC(glm_back)
+BIC(glm_back)
+
+summary(glm_fwd)
+glm_fwd$deviance
+AIC(glm_fwd)
+BIC(glm_fwd)
+
+summary(glm_both)
+glm_both$deviance
+AIC(glm_both)
+BIC(glm_both)
+
+glm_both$coefficients
+
+# Final Model
+log_model <- glm(fracture ~ priorfrac + age + height + bonemed_fu + bonetreat, data = train_sub, family = "binomial")
+summary(log_model)
+
+# Predict test data based on model
+predict_test <- predict(log_model, test, type = "response")
+predict_val <- predict(log_model, valid, type = "response")
+
+# Changing probabilities
+predict_test <- ifelse(predict_test > 0.5, "Yes", "No")
+predict_val <- ifelse(predict_val > 0.5, "Yes", "No")
+
+   
+# Model Performance
+confusionMatrix(data = as.factor(predict_test), reference = test$fracture)
+confusionMatrix(data = as.factor(predict_val), reference = valid$fracture)
 ```
 
 ### Objective 2
