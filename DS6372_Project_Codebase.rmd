@@ -397,9 +397,138 @@ View(predictions)
 
 
 __KNN__
+
 ```{r}
+# See how many women fractured a bone within the first year after joining the study
+table(df$fracture)
 ```
 
+
+
+```{r}
+# Look at data
+df
+# Look at datatypes 
+str(df)
+
+# Make a copy of original data as a working copy
+df1 <- df
+
+# one hot encode for categorical variables
+df1$priorfrac<-ifelse(df1$priorfrac=='Yes', 1, 0)
+df1$premeno<-ifelse(df1$premeno=='Yes', 1, 0)
+df1$momfrac<-ifelse(df1$momfrac=='Yes', 1, 0)
+df1$armassist<-ifelse(df1$armassist=='Yes', 1, 0)
+df1$smoke<-ifelse(df1$smoke=='Yes', 1, 0)
+df1$fracture<-ifelse(df1$fracture=='Yes', 1, 0)
+df1$bonemed<-ifelse(df1$bonemed=='Yes', 1, 0)
+df1$bonemed_fu<-ifelse(df1$bonemed_fu=='Yes', 1, 0)
+df1$bonetreat<-ifelse(df1$bonetreat=='Yes', 1, 0)
+df1$raterisk<-as.numeric(factor(df1$raterisk))
+
+# check the data
+df1
+
+```
+
+
+
+```{r}
+# delete columns that probably wont help predict
+df1 <- df1[-c(1, 2, 3)]
+# check data
+df1
+
+# standardize function
+standardize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+# standardize the data
+df1.subset.n<- as.data.frame(lapply(df1[, c(-12)], standardize))
+
+# Check data
+head(df1.subset.n)
+
+
+```
+
+
+```{r}
+
+set.seed(123)
+
+# Random selection of 70% data.
+dat.d <- sample(1:nrow(df1.subset.n), size=nrow(df1.subset.n)*0.7, replace = FALSE) 
+
+# 70% training data
+train.bone <- df1[dat.d, ] 
+# Remaining 30% test data
+test.bone <- df1[-dat.d, ] 
+
+# Create a separate dataframe for "Fractured?" feature, which is our target.
+train.bone_labels <- df1[dat.d, 12]
+test.bone_labels  <- df1[-dat.d, 12] 
+
+
+```
+
+
+```{r}
+# To find the number of observation
+NROW(train.bone_labels)
+
+# sqrt of obs is decent k
+sqrt(NROW(train.bone_labels))
+
+```
+
+
+```{r}
+# Run knn for 18 & 19
+knn.18 <-  knn(train=train.bone, test=test.bone, cl=train.bone_labels, k=18)
+knn.19 <-  knn(train=train.bone, test=test.bone, cl=train.bone_labels, k=19)
+
+# Accuracy score for knn 18 & 19
+ACC.18 <- 100 * sum(test.bone_labels == knn.18)/NROW(test.bone_labels)
+ACC.19 <- 100 * sum(test.bone_labels == knn.19)/NROW(test.bone_labels)
+ACC.18
+ACC.19
+
+# to check prediction against actual value in tabular form
+table(knn.18, test.bone_labels) 
+table(knn.19, test.bone_labels) 
+
+# Zero means no and one means yes to fracture
+# looking at not fractured as positive class
+
+# Make factors so we can do confusion matrix
+test.bone_labels <- factor(test.bone_labels)
+# Create confusion matrix
+confusionMatrix(knn.18, test.bone_labels)
+
+
+```
+
+
+```{r}
+# declaration to initiate for loop
+i=1                          
+k.optm=1                    
+
+# For loop for accuracy scores
+for (i in 1:25){ 
+    knn.mod <-  knn(train=train.bone, test=test.bone, cl=train.bone_labels, k=i)
+    k.optm[i] <- 100 * sum(test.bone_labels == knn.mod)/NROW(test.bone_labels)
+    k=i  
+    cat(k, '=', k.optm[i], '\n')   
+}
+
+# Plot accuracy for different k
+plot(k.optm, type='b', xlab='K-Value', ylab='Accuracy level')
+
+
+```
 
 
 
