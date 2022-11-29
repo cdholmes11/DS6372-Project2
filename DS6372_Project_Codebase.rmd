@@ -14,7 +14,7 @@ __Libraries__
 ```{r load-packages, include=FALSE}
 ## Source - https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
 # Package names
-packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret", "naniar", "GGally")
+packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret", "naniar", "GGally", "rgl")
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -99,6 +99,27 @@ corrplot.mixed(M, lower = 'number', upper = 'ellipse', order = 'alphabet')
 
 model <- lm(frac_num ~ ., data = df[, -c(15)])
 vif(model)
+
+df %>%
+  ggplot(aes(x = height, y = fracscore, color = fracture)) +
+  geom_point()
+
+# This is to output a rgl plot in a rmarkdown document.
+setupKnitr()
+
+# Data: the iris data is provided by R
+
+# Add a new column with color
+mycolors <- c('blue', 'red')
+df$color <- mycolors[ as.numeric(df$fracture) ]
+
+# Plot
+plot3d( 
+  x=df$phy_id, y=df$age, z=df$weight, 
+  col = df$color, 
+  type = 's', 
+  radius = 1,
+  xlab="Phys", ylab="Height", zlab="Weight")
 ```
 
 ```{r}
@@ -236,20 +257,19 @@ __Train, Test, Validation Split__
 ```{r}
 set.seed(123)
 # Split data into smaller sets: 80% training, 10% test, and 10% validate
-ss <- sample(1:3, size = nrow(df), replace = TRUE, prob = c(0.8, 0.1, 0.1))
+ss <- sample(1:3, size = nrow(df), replace = TRUE, prob = c(0.8, 0.2))
 train <- df[ss == 1, ]
 test <- df[ss == 2, ]
-valid <- df[ss == 3, ]
 ```
 
 ### Objective 1
 Display the ability to perform EDA and build a logistic regression model for interpretation purposes.
 __Simple Logistic Regression__
 ```{r}
-# Removing BMI and Fracscore due to multicollinearity
+# Removing BMI, Age, and Site ID due to multicollinearity
 train_sub <-
   train %>%
-  select(-c("sub_id", "bmi", "fracscore", "frac_num", "smoke", "momfrac"))
+  select(-c("sub_id", "bmi", "age", "site_id", "frac_num", "smoke"))
 
 # Logistic Model
 log_model <- glm(fracture ~ ., data = train_sub, family = "binomial")
@@ -278,7 +298,7 @@ glm_both$coefficients
 
 # Final Model
 log_model <-
-  glm(fracture ~ priorfrac + age + height + bonemed_fu + bonetreat,
+  glm(fracture ~ priorfrac + height + momfrac + fracscore + bonemed_fu + bonetreat,
   data = train_sub, family = "binomial")
 summary(log_model)
 
@@ -287,13 +307,32 @@ predict_test <- predict(log_model, test, type = "response")
 predict_val <- predict(log_model, valid, type = "response")
 
 # Changing probabilities
-predict_test <- ifelse(predict_test > 0.5, "Yes", "No")
-predict_val <- ifelse(predict_val > 0.5, "Yes", "No")
+predict_test_fact <- ifelse(predict_test > 0.3, "Yes", "No")
+predict_val_fact <- ifelse(predict_val > 0.3, "Yes", "No")
 
    
 # Model Performance
-confusionMatrix(data = as.factor(predict_test), reference = test$fracture)
-confusionMatrix(data = as.factor(predict_val), reference = valid$fracture)
+confusionMatrix(data = as.factor(predict_test_fact), reference = test$fracture)
+confusionMatrix(data = as.factor(predict_val_fact), reference = valid$fracture)
+
+
+# ROC-AUC Curve
+ROCPred <- prediction(predict_test, test$fracture) 
+ROCPer <- performance(ROCPred, measure = "tpr", x.measure = "fpr")
+   
+auc <- performance(ROCPred, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+   
+# Plotting curve
+plot(ROCPer)
+plot(ROCPer, colorize = TRUE, 
+     print.cutoffs.at = seq(0.1, by = 0.1), 
+     main = "ROC CURVE")
+abline(a = 0, b = 1)
+   
+auc <- round(auc, 4)
+legend(.6, .4, auc, title = "AUC", cex = 1)
 ```
 
 ### Objective 2
@@ -311,22 +350,6 @@ lda_valid <- valid[, c("age", "weight", "height", "bmi", "fracscore", "fracture"
 ##View(dflda)
 ggpairs(lda_train, aes(color = fracture))
 ```
-
-##splitting data
-```{r}
-set.seed(123)
-
-# Split data into smaller sets: 80% training, 10% test, and 10% validate
-ss <- sample(1:3,size=nrow(df),replace=TRUE,prob=c(0.8,0.1,0.1))
-train <- dflda[ss==1,]  
-#View(train)
-test <- dflda[ss==2,]
-#View(test)
-valid <-dflda[ss==3,]
-#View(valid)
-valid$fracture
-```
-
 
 
 ```{r}
@@ -349,7 +372,6 @@ qda.fit <- train(fracture ~ .,
 
 qda.fit
 
-set.seed(1234)
 knn.fit <- train(fracture ~ .,
   data = lda_train,
   method = "knn",
