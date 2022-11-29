@@ -14,7 +14,7 @@ __Libraries__
 ```{r load-packages, include=FALSE}
 ## Source - https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
 # Package names
-packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret", "naniar", "GGally")
+packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret", "naniar", "GGally", "rgl")
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -35,6 +35,12 @@ __Data Import__
 df <- glow_bonemed
 summary(df) ## ratio of response (fracture) is 3:1 No to Yes
 str(df)
+<<<<<<< Updated upstream
+=======
+#view(df)
+
+library(naniar)
+>>>>>>> Stashed changes
 gg_miss_var(df) ## no missing data
 
 # New column for numeric fracture
@@ -62,6 +68,7 @@ df %>%
 
 __EDA__
 ```{r}
+<<<<<<< Updated upstream
 # Numeric Variables
 df %>%
   ggplot(aes(x = age, y = frac_num)) +
@@ -99,6 +106,27 @@ corrplot.mixed(M, lower = 'number', upper = 'ellipse', order = 'alphabet')
 
 model <- lm(frac_num ~ ., data = df[, -c(15)])
 vif(model)
+
+df %>%
+  ggplot(aes(x = height, y = fracscore, color = fracture)) +
+  geom_point()
+
+# This is to output a rgl plot in a rmarkdown document.
+setupKnitr()
+
+# Data: the iris data is provided by R
+
+# Add a new column with color
+mycolors <- c('blue', 'red')
+df$color <- mycolors[ as.numeric(df$fracture) ]
+
+# Plot
+plot3d( 
+  x=df$phy_id, y=df$age, z=df$weight, 
+  col = df$color, 
+  type = 's', 
+  radius = 1,
+  xlab="Phys", ylab="Height", zlab="Weight")
 ```
 
 ```{r}
@@ -236,20 +264,40 @@ __Train, Test, Validation Split__
 ```{r}
 set.seed(123)
 # Split data into smaller sets: 80% training, 10% test, and 10% validate
-ss <- sample(1:3, size = nrow(df), replace = TRUE, prob = c(0.8, 0.1, 0.1))
+ss <- sample(1:3, size = nrow(df), replace = TRUE, prob = c(0.8, 0.2))
 train <- df[ss == 1, ]
 test <- df[ss == 2, ]
-valid <- df[ss == 3, ]
 ```
+=======
+install.packages("ggplot2")
+library(ggplot2)
+g<-df %>% 
+  group_by(fracture) %>%
+    summarise(cnt=n()) %>%
+    mutate(perc=round(cnt/sum(cnt),4))
+g
+
+ggplot(g,aes(x=fracture,y=perc,colour=fracture))+
+  geom_bar(aes(fill=fracture),show.legend=F,stat="identity")+
+  ylab("Proportion of fracture")
+```
+
+#### the possiblity of fracture is only 25 %. this is rare event.  
+>>>>>>> Stashed changes
 
 ### Objective 1
 Display the ability to perform EDA and build a logistic regression model for interpretation purposes.
 __Simple Logistic Regression__
 ```{r}
+<<<<<<< HEAD
+
 # Removing BMI and Fracscore due to multicollinearity
+=======
+# Removing BMI, Age, and Site ID due to multicollinearity
+>>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 train_sub <-
   train %>%
-  select(-c("sub_id", "bmi", "fracscore", "frac_num", "smoke", "momfrac"))
+  select(-c("sub_id", "bmi", "age", "site_id", "frac_num", "smoke"))
 
 # Logistic Model
 log_model <- glm(fracture ~ ., data = train_sub, family = "binomial")
@@ -278,7 +326,7 @@ glm_both$coefficients
 
 # Final Model
 log_model <-
-  glm(fracture ~ priorfrac + age + height + bonemed_fu + bonetreat,
+  glm(fracture ~ priorfrac + height + momfrac + fracscore + bonemed_fu + bonetreat,
   data = train_sub, family = "binomial")
 summary(log_model)
 
@@ -287,13 +335,38 @@ predict_test <- predict(log_model, test, type = "response")
 predict_val <- predict(log_model, valid, type = "response")
 
 # Changing probabilities
-predict_test <- ifelse(predict_test > 0.5, "Yes", "No")
-predict_val <- ifelse(predict_val > 0.5, "Yes", "No")
+predict_test_fact <- ifelse(predict_test > 0.3, "Yes", "No")
+predict_val_fact <- ifelse(predict_val > 0.3, "Yes", "No")
 
    
 # Model Performance
+<<<<<<< HEAD
 confusionMatrix(data = as.factor(predict_test), reference = test$fracture)
 confusionMatrix(data = as.factor(predict_val), reference = valid$fracture)
+
+=======
+confusionMatrix(data = as.factor(predict_test_fact), reference = test$fracture)
+confusionMatrix(data = as.factor(predict_val_fact), reference = valid$fracture)
+
+
+# ROC-AUC Curve
+ROCPred <- prediction(predict_test, test$fracture) 
+ROCPer <- performance(ROCPred, measure = "tpr", x.measure = "fpr")
+   
+auc <- performance(ROCPred, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+   
+# Plotting curve
+plot(ROCPer)
+plot(ROCPer, colorize = TRUE, 
+     print.cutoffs.at = seq(0.1, by = 0.1), 
+     main = "ROC CURVE")
+abline(a = 0, b = 1)
+   
+auc <- round(auc, 4)
+legend(.6, .4, auc, title = "AUC", cex = 1)
+>>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 ```
 
 ### Objective 2
@@ -305,80 +378,329 @@ __Complex Logistic Regression__
 
 __LDA/QDA__ ## only on numeric variables
 ```{r}
-lda_train <- train[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
-lda_test <- test[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
-lda_valid <- valid[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+lq_train <- train[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+lq_test <- test[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+
 ##View(dflda)
+<<<<<<< Updated upstream
 ggpairs(lda_train, aes(color = fracture))
+=======
+
+
 ```
 
-##splitting data
+<<<<<<< HEAD
+## heatmap data set 
 ```{r}
-set.seed(123)
+library(gplots)
+dflda1<- df[c("age","weight","height","bmi","fracscore")]
+corD <- cor(dflda1)
+heatmap.2(corD,scale ="column",tracecol ="#303030",margin=c(9, 10))
 
-# Split data into smaller sets: 80% training, 10% test, and 10% validate
-ss <- sample(1:3,size=nrow(df),replace=TRUE,prob=c(0.8,0.1,0.1))
-train <- dflda[ss==1,]  
-#View(train)
-test <- dflda[ss==2,]
-#View(test)
-valid <-dflda[ss==3,]
-#View(valid)
-valid$fracture
+>>>>>>> Stashed changes
+
 ```
-
+## weight,bmi and height is related to eachother
+## fracscore and age are related to eachother.
 
 
 ```{r}
-fitControl<-trainControl(method="repeatedcv",number=5,repeats=1,classProbs=TRUE, summaryFunction=mnLogLoss)
 
-lda.fit <- train(fracture ~ .,
-  data = lda_train,
-  method = "lda",
-  trControl = fitControl,
-  metric = "logLoss"
-)
-lda.fit
-
-qda.fit <- train(fracture ~ .,
-  data = lda_train,
-  method = "qda",
-  trControl = fitControl,
-  metric = "logLoss"
-)
-
-qda.fit
-
-set.seed(1234)
-knn.fit <- train(fracture ~ .,
-  data = lda_train,
-  method = "knn",
-  trControl = fitControl,
-  tuneGrid = data.frame(k = c(1, 5, 10, 15, 25, 50, 100, 200, 300, 400)),
-  metric = "logLoss"
-)
-
-knn.fit
-
-plot(knn.fit)
 
 ```
 
 
+
+<!-- set.seed(123) -->
+
+<!-- # Split data into smaller sets: 80% training, 10% test, and 10% validate -->
+<!-- ss <- sample(1:3,size=nrow(df),replace=TRUE,prob=c(0.8,0.1,0.1)) -->
+<!-- train <- dflda[ss==1,]   -->
+<!-- #View(train) -->
+<!-- test <- dflda[ss==2,] -->
+<!-- #View(test) -->
+<!-- valid <-dflda[ss==3,] -->
+<!-- #View(valid) -->
+<!-- valid$fracture -->
+<!-- ``` -->
+
+
+
+=======
+>>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
+
 ```{r}
-predictions <- data.frame(status = lda_valid$fracture)
-predictions$knn <- predict(knn.fit, lda_valid, type = "prob")[, "No"]
-predictions$LDA <- predict(lda.fit, lda_valid, type = "prob")[, "No"]
-predictions$QDA <- predict(qda.fit, lda_valid, type = "prob")[, "No"]
-View(predictions)
+# fitControl<-trainControl(method="repeatedcv",number=5,repeats=1,classProbs=TRUE, summaryFunction=mnLogLoss)
+# 
+# lda.fit <- train(fracture ~ .,
+#   data = lda_train,
+#   method = "lda",
+#   trControl = fitControl,
+#   metric = "logLoss"
+# )
+# lda.fit
+
+############################LDA###########################
+
+library(MASS)
+
+lda.m <- lda(fracture~age+weight+height,data=lq_train)
+lda.m 
+ ##output 75.12 = No
+  ##  24.87 % = Yes that means in our dataset there are only 25 % of female have fracture. The output also provides group mean
+## which suggest that fracture depends on the age but not necessarily depends on weight and height. The coefficents of LDA provides the linear combination of variables that are used to form LDA decision rule. 
+
+plot(lda.m)
+
+lda.m.pred.train <- predict(lda.m,lq_train)
+lda.m.pred.train
+ldahist(lda.m.pred.train$x[,1],g=lda.m.pred.train$class)
+
+## from the histogram we can see that when it is greater than 2 , the probability of fracture increases.
+lda.m.pred.t <- predict(lda.m,lq_test)
+lda.m.pred.t
+ldahist(lda.m.pred.t$x[,1],g=lda.m.pred.t$class)
+
+## from the histogram we can see that when it is greater than 2 , the probability of fracture increases.
+
+
+
+## roc curve
+library(pROC)
+
+roclda=roc(response=lq_test$fracture,predictor=lda.m.pred.t$posterior[,2],levels=c("No","Yes"))
+plot(roclda,print.thres=TRUE,print.auc = TRUE)
+
+
+
+threshold=0.3
+lda.preds<-factor(ifelse(lda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
+confusionMatrix(data=lda.preds,reference=lda_test$fracture,positive="Yes")
+
+
+par(mfrow=c(1,1))
+plot(lda.m.pred.t$x[,1],lda.m.pred.t$class, col=lq_test$fracture)
+
+
+
+#  lda_plot <- cbind(lda_train,predict(lda.m)$x)
+#  
+#  
+#  ggplot(lda_plot, aes(age,weight,height))+
+# geom_point(aes(color = fracture))
+
+################################QDA########################
+
+# qda.fit <- train(fracture ~ .,
+#   data = lda_train,
+#   method = "qda",
+#   trControl = fitControl,
+#   metric = "logLoss"
+# )
+# 
+# qda.fit
+# 
+# <<<<<<< HEAD
+
+
+
+qda.m <- qda(fracture~age+weight+height,data=lda_train)
+qda.m 
+
+qda.m.pred.train <- predict(qda.m,lq_train)
+qda.m.pred.train
+
+qda.m.pred.t <- predict(qda.m,lq_test)
+qda.m.pred.t
+
+
+rocqda=roc(response=lq_test$fracture,predictor=qda.m.pred.t$posterior[,2],levels=c("No","Yes"))
+plot(rocqda,print.thres=TRUE,print.auc = TRUE)
+
+threshold=0.28
+qda.preds<-factor(ifelse(qda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
+confusionMatrix(data=qda.preds,reference=lq_test$fracture,positive="Yes")
+
+
+par(mfrow=c(1,1))
+plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
+
+
+```
+
+```{r}
+###overlap ROC curve #######
+
+library(ROCR)
+
+# p1 <- prediction(glm.probs, test$Direction) %>%
+#   performance(measure = "tpr", x.measure = "fpr")
+p1 <- prediction(lda.m.pred.t$posterior[,2], lq_test$fracture) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+
+p2 <- prediction(qda.m.pred.t$posterior[,2], lq_test$fracture) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+
+# plot(p1, col = "red")
+plot(p1,col = "blue")
+plot(p2, add = TRUE, col = "green")
+
+```
+
+=======
+# >>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
+# knn.fit <- train(fracture ~ .,
+#   data = lda_train,
+#   method = "knn",
+#   trControl = fitControl,
+#   tuneGrid = data.frame(k = c(1, 5, 10, 15, 25, 50, 100, 200, 300, 400)),
+#   metric = "logLoss"
+# )
+# 
+# knn.fit
+# 
+# plot(knn.fit)
+# 
+# ```
+# 
+# 
+# ```{r}
+# predictions <- data.frame(status = lda_valid$fracture)
+# predictions$knn <- predict(knn.fit, lda_valid, type = "prob")[, "No"]
+# predictions$LDA <- predict(lda.fit, lda_valid, type = "prob")[, "No"]
+# predictions$QDA <- predict(qda.fit, lda_valid, type = "prob")[, "No"]
+# View(predictions)
+
 ```
 
 
 __KNN__
+
 ```{r}
+# See how many women fractured a bone within the first year after joining the study
+table(df$fracture)
 ```
 
 
+
+```{r}
+# Look at data
+df
+# Look at datatypes 
+str(df)
+
+# Make a copy of original data as a working copy
+df1 <- glow_bonemed
+
+# one hot encode for categorical variables
+df1$priorfrac<-ifelse(df1$priorfrac=='Yes', 1, 0)
+df1$premeno<-ifelse(df1$premeno=='Yes', 1, 0)
+df1$momfrac<-ifelse(df1$momfrac=='Yes', 1, 0)
+df1$armassist<-ifelse(df1$armassist=='Yes', 1, 0)
+df1$smoke<-ifelse(df1$smoke=='Yes', 1, 0)
+df1$fracture<-ifelse(df1$fracture=='Yes', 1, 0)
+df1$bonemed<-ifelse(df1$bonemed=='Yes', 1, 0)
+df1$bonemed_fu<-ifelse(df1$bonemed_fu=='Yes', 1, 0)
+df1$bonetreat<-ifelse(df1$bonetreat=='Yes', 1, 0)
+df1$raterisk<-as.numeric(factor(df1$raterisk))
+
+# check the data
+df1
+
+```
+
+
+
+```{r}
+# delete columns that probably wont help predict
+df1 <- df1[-c(1, 2, 3)]
+# check data
+df1
+
+# standardize function
+standardize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+# standardize the data
+df1.subset.n<- as.data.frame(lapply(df1[, c(-12)], standardize))
+
+# Check data
+head(df1.subset.n)
+
+
+```
+
+
+```{r}
+
+# selection of the data
+dat.d <- sample(1:nrow(df1.subset.n), size=nrow(df1.subset.n)*0.816, replace = FALSE) 
+
+
+# Create a separate dataframe for "Fractured?" feature, which is our target.
+train.bone_labels <- df1[dat.d, 12]
+test.bone_labels  <- df1[-dat.d, 12] 
+
+
+```
+
+
+```{r}
+# To find the number of observation
+NROW(train.bone_labels)
+
+# sqrt of obs is decent k
+sqrt(NROW(train.bone_labels))
+
+```
+
+
+```{r}
+# Run knn for 20 & 21
+knn.20 <-  knn(train=train, test=test, cl=train.bone_labels, k=20)
+knn.21 <-  knn(train=train, test=test, cl=train.bone_labels, k=21)
+
+# Accuracy score for knn 20 & 21
+ACC.20 <- 100 * sum(test.bone_labels == knn.20)/NROW(test.bone_labels)
+ACC.21 <- 100 * sum(test.bone_labels == knn.21)/NROW(test.bone_labels)
+ACC.20
+ACC.21
+
+# to check prediction against actual value in tabular form
+table(knn.20, test.bone_labels) 
+table(knn.21, test.bone_labels) 
+
+# Zero means no and one means yes to fracture
+# looking at not fractured as positive class
+
+# Make factors so we can do confusion matrix
+test.bone_labels <- factor(test.bone_labels)
+# Create confusion matrix
+confusionMatrix(knn.21, test.bone_labels)
+
+
+```
+
+
+```{r}
+# declaration to initiate for loop
+i=1                          
+k.optm=1                    
+
+# For loop for accuracy scores
+for (i in 1:25){ 
+    knn.mod <-  knn(train=train, test=test, cl=train.bone_labels, k=i)
+    k.optm[i] <- 100 * sum(test.bone_labels == knn.mod)/NROW(test.bone_labels)
+    k=i  
+    cat(k, '=', k.optm[i], '\n')   
+}
+
+# Plot accuracy for different k
+plot(k.optm, type='b', xlab='K-Value', ylab='Accuracy level')
+
+
+```
 
 
 
