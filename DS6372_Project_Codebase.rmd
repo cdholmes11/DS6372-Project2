@@ -290,12 +290,8 @@ Display the ability to perform EDA and build a logistic regression model for int
 __Simple Logistic Regression__
 ```{r}
 <<<<<<< HEAD
-<<<<<<< HEAD
 
 # Removing BMI and Fracscore due to multicollinearity
-=======
-# Removing BMI, Age, and Site ID due to multicollinearity
->>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 =======
 # Removing BMI, Age, and Site ID due to multicollinearity
 >>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
@@ -345,13 +341,10 @@ predict_val_fact <- ifelse(predict_val > 0.3, "Yes", "No")
    
 # Model Performance
 <<<<<<< HEAD
-<<<<<<< HEAD
 confusionMatrix(data = as.factor(predict_test), reference = test$fracture)
 confusionMatrix(data = as.factor(predict_val), reference = valid$fracture)
 
 =======
-=======
->>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 confusionMatrix(data = as.factor(predict_test_fact), reference = test$fracture)
 confusionMatrix(data = as.factor(predict_val_fact), reference = valid$fracture)
 
@@ -373,9 +366,6 @@ abline(a = 0, b = 1)
    
 auc <- round(auc, 4)
 legend(.6, .4, auc, title = "AUC", cex = 1)
-<<<<<<< HEAD
->>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
-=======
 >>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 ```
 
@@ -400,7 +390,6 @@ ggpairs(lda_train, aes(color = fracture))
 ```
 
 <<<<<<< HEAD
-<<<<<<< HEAD
 ## heatmap data set 
 ```{r}
 library(gplots)
@@ -421,8 +410,6 @@ heatmap.2(corD,scale ="column",tracecol ="#303030",margin=c(9, 10))
 ```
 
 
-=======
->>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 
 <!-- set.seed(123) -->
 
@@ -463,17 +450,7 @@ lda.m
   ##  24.87 % = Yes that means in our dataset there are only 25 % of female have fracture. The output also provides group mean
 ## which suggest that fracture depends on the age but not necessarily depends on weight and height. The coefficents of LDA provides the linear combination of variables that are used to form LDA decision rule. 
 
-<<<<<<< HEAD
 plot(lda.m)
-=======
-knn.fit <- train(fracture ~ .,
-  data = lda_train,
-  method = "knn",
-  trControl = fitControl,
-  tuneGrid = data.frame(k = c(1, 5, 10, 15, 25, 50, 100, 200, 300, 400)),
-  metric = "logLoss"
-)
->>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 
 lda.m.pred.train <- predict(lda.m,lq_train)
 lda.m.pred.train
