@@ -386,7 +386,6 @@ lq_test <- test[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
 ggpairs(lda_train, aes(color = fracture))
 =======
 
-
 ```
 
 <<<<<<< HEAD
@@ -397,37 +396,19 @@ dflda1<- df[c("age","weight","height","bmi","fracscore")]
 corD <- cor(dflda1)
 heatmap.2(corD,scale ="column",tracecol ="#303030",margin=c(9, 10))
 
->>>>>>> Stashed changes
+
 
 ```
-## weight,bmi and height is related to eachother
-## fracscore and age are related to eachother.
+## weight,bmi  are corelated to eachother
+## fracscore and age are highly co-related to eachother. So it is decided to use only weight,height and age for our LDA and QDA model. 
 
 
 ```{r}
 
 
 ```
-
-
-
-<!-- set.seed(123) -->
-
-<!-- # Split data into smaller sets: 80% training, 10% test, and 10% validate -->
-<!-- ss <- sample(1:3,size=nrow(df),replace=TRUE,prob=c(0.8,0.1,0.1)) -->
-<!-- train <- dflda[ss==1,]   -->
-<!-- #View(train) -->
-<!-- test <- dflda[ss==2,] -->
-<!-- #View(test) -->
-<!-- valid <-dflda[ss==3,] -->
-<!-- #View(valid) -->
-<!-- valid$fracture -->
-<!-- ``` -->
-
-
-
 =======
->>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
+
 
 ```{r}
 # fitControl<-trainControl(method="repeatedcv",number=5,repeats=1,classProbs=TRUE, summaryFunction=mnLogLoss)
@@ -446,22 +427,23 @@ library(MASS)
 
 lda.m <- lda(fracture~age+weight+height,data=lq_train)
 lda.m 
- ##output 75.12 = No
-  ##  24.87 % = Yes that means in our dataset there are only 25 % of female have fracture. The output also provides group mean
-## which suggest that fracture depends on the age but not necessarily depends on weight and height. The coefficents of LDA provides the linear combination of variables that are used to form LDA decision rule. 
+ 
+##output 75.12 = No
+  ##  24.87 % = Yes that means in our dataset there are only 25 % of subjects have fracture. The coefficents of LDA provides the linear combination of variables that are used to form LDA decision rule. The output group means indicates the mean values of different feature when they fall to a particular response class.THe group means difference between the age,weight and height for the fracture  repsonse is not significant so it wont be easier to classify.   
 
-plot(lda.m)
+plot(lda.m,col=lq_train$fracture)
 
 lda.m.pred.train <- predict(lda.m,lq_train)
 lda.m.pred.train
 ldahist(lda.m.pred.train$x[,1],g=lda.m.pred.train$class)
 
-## from the histogram we can see that when it is greater than 2 , the probability of fracture increases.
+## The  plot shows how the response class has been classified by the LDA classifier. The X-axis shows the value of line defined by the co-efficient of linear discriminant for LDA model. The two groups are the groups for response classes. from the histogram we can see that when it is greater than 2 , the probability of fracture increases.
+
 lda.m.pred.t <- predict(lda.m,lq_test)
 lda.m.pred.t
 ldahist(lda.m.pred.t$x[,1],g=lda.m.pred.t$class)
 
-## from the histogram we can see that when it is greater than 2 , the probability of fracture increases.
+## Same for test set. from the histogram we can see that when it is greater than 2 , the probability of fracture increases.
 
 
 
@@ -471,23 +453,30 @@ library(pROC)
 roclda=roc(response=lq_test$fracture,predictor=lda.m.pred.t$posterior[,2],levels=c("No","Yes"))
 plot(roclda,print.thres=TRUE,print.auc = TRUE)
 
-
+##########ERROR METRICS##############################################
+## from ROC curve the threshold is 0.299~0.3 and AUC of 0.735. TPR(sensitivity),FPR(specificity) the value closer to (0,1) is determined as probabilty threshold . In this case the threshold is 0.299
+ 
 
 threshold=0.3
 lda.preds<-factor(ifelse(lda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
 confusionMatrix(data=lda.preds,reference=lda_test$fracture,positive="Yes")
+
+## the accuracy of our LDA model on test data is 77.08 % and error rate is 22.92%.## sensitivity aka accuracy of true positive class (who has fracture) is only 57.14% And specificity aka accuracy of true negative class (who dont have fracture) is 85.29%. 
+##PPV - is 61.54% is predicted positive (YES) among all the positive (Yes) predictions
+##NPV - 82.86 % is predicted negative (No) among all the negative (NO) predictions
+
+### SO the ppv value is needed in order to find new patient going to have fracture and need medication is only 61.54%. Since our NPV is 82.86 % that means we can assure that the patient is not going to have fracture 82.86 accuracy.
+
+###Prevalence is the chances of being the + class with no information,that means on only 29.17% yes fracture class shows up. 
 
 
 par(mfrow=c(1,1))
 plot(lda.m.pred.t$x[,1],lda.m.pred.t$class, col=lq_test$fracture)
 
 
+######### This figure shows how test data has been classified using QDA model. The mix of red and black colored shows incorrect classification prediction. 
 
-#  lda_plot <- cbind(lda_train,predict(lda.m)$x)
-#  
-#  
-#  ggplot(lda_plot, aes(age,weight,height))+
-# geom_point(aes(color = fracture))
+
 
 ################################QDA########################
 
@@ -500,7 +489,7 @@ plot(lda.m.pred.t$x[,1],lda.m.pred.t$class, col=lq_test$fracture)
 # 
 # qda.fit
 # 
-# <<<<<<< HEAD
+# 
 
 
 
@@ -517,14 +506,23 @@ qda.m.pred.t
 rocqda=roc(response=lq_test$fracture,predictor=qda.m.pred.t$posterior[,2],levels=c("No","Yes"))
 plot(rocqda,print.thres=TRUE,print.auc = TRUE)
 
-threshold=0.28
+##from ROC curve the threshold is 0.285~0.29 and AUC of 0.739. TPR(sensitivity),FPR(specificity) the value closer to (0,1) is determined as probabilty threshold . In this case the threshold is 0.29
+
+threshold=0.29
 qda.preds<-factor(ifelse(qda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
 confusionMatrix(data=qda.preds,reference=lq_test$fracture,positive="Yes")
 
+## accuracy 77.08% 
+## Sensitivity ##64.29 %
+##Specificity 82.35 %
+##PPV is only 60 % little worse than LDA , so this model cannot be used if we want to predict if someone going to have fracture.
+##NPV is 84.85 
+## Prevalence is 29.17%
 
 par(mfrow=c(1,1))
 plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
 
+## This figure shows how test data has been classified using QDA model. The mix of red and black colored shows incorrect classification prediction. 
 
 ```
 
@@ -533,20 +531,40 @@ plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
 
 library(ROCR)
 
-# p1 <- prediction(glm.probs, test$Direction) %>%
-#   performance(measure = "tpr", x.measure = "fpr")
-p1 <- prediction(lda.m.pred.t$posterior[,2], lq_test$fracture) %>%
+ p1 <- prediction(predict_test, test$fracture) %>%
+   performance(measure = "tpr", x.measure = "fpr")
+
+ p2 <- prediction(lda.m.pred.t$posterior[,2], lq_test$fracture) %>%
   performance(measure = "tpr", x.measure = "fpr")
 
-p2 <- prediction(qda.m.pred.t$posterior[,2], lq_test$fracture) %>%
+p3 <- prediction(qda.m.pred.t$posterior[,2], lq_test$fracture) %>%
   performance(measure = "tpr", x.measure = "fpr")
 
-# plot(p1, col = "red")
-plot(p1,col = "blue")
-plot(p2, add = TRUE, col = "green")
+plot(p1, col = "red")
+plot(p2,add= TRUE ,col = "blue")
+plot(p3, add = TRUE, col = "green")
+legend("bottomright",
+       legend=c("Logistic -AUC = 0.765", "LDA -AUC = 0.735","QDA -AUC =0.739 "),
+       col=c("red", "blue","green"),
+       lwd=2, cex =0.7, xpd = TRUE, horiz = FALSE)
+
 
 ```
 
+###Additonal Item##########
+## Package KlaR help to create exploratory graph for LDA and QDA . It plots the features and partition the target class taking two combination of a variable at a time. The classifaction border are displayed in pink and the subsequent error rates are given as well. 
+```{r}
+library(klaR)
+partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="lda",plot.matrix = TRUE,imageplot=TRUE)
+
+```
+
+
+```{r}
+
+partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="qda",plot.matrix = TRUE,imageplot=TRUE)
+
+```
 =======
 # >>>>>>> 01c3b27ac0bb90438fe17f80748283bf37926416
 # knn.fit <- train(fracture ~ .,
