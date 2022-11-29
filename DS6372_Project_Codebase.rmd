@@ -412,7 +412,7 @@ df
 str(df)
 
 # Make a copy of original data as a working copy
-df1 <- df
+df1 <- glow_bonemed
 
 # one hot encode for categorical variables
 df1$priorfrac<-ifelse(df1$priorfrac=='Yes', 1, 0)
@@ -456,15 +456,9 @@ head(df1.subset.n)
 
 ```{r}
 
-set.seed(123)
+# selection of the data
+dat.d <- sample(1:nrow(df1.subset.n), size=nrow(df1.subset.n)*0.816, replace = FALSE) 
 
-# Random selection of 70% data.
-dat.d <- sample(1:nrow(df1.subset.n), size=nrow(df1.subset.n)*0.7, replace = FALSE) 
-
-# 70% training data
-train.bone <- df1[dat.d, ] 
-# Remaining 30% test data
-test.bone <- df1[-dat.d, ] 
 
 # Create a separate dataframe for "Fractured?" feature, which is our target.
 train.bone_labels <- df1[dat.d, 12]
@@ -485,19 +479,19 @@ sqrt(NROW(train.bone_labels))
 
 
 ```{r}
-# Run knn for 18 & 19
-knn.18 <-  knn(train=train.bone, test=test.bone, cl=train.bone_labels, k=18)
-knn.19 <-  knn(train=train.bone, test=test.bone, cl=train.bone_labels, k=19)
+# Run knn for 20 & 21
+knn.20 <-  knn(train=train, test=test, cl=train.bone_labels, k=20)
+knn.21 <-  knn(train=train, test=test, cl=train.bone_labels, k=21)
 
-# Accuracy score for knn 18 & 19
-ACC.18 <- 100 * sum(test.bone_labels == knn.18)/NROW(test.bone_labels)
-ACC.19 <- 100 * sum(test.bone_labels == knn.19)/NROW(test.bone_labels)
-ACC.18
-ACC.19
+# Accuracy score for knn 20 & 21
+ACC.20 <- 100 * sum(test.bone_labels == knn.20)/NROW(test.bone_labels)
+ACC.21 <- 100 * sum(test.bone_labels == knn.21)/NROW(test.bone_labels)
+ACC.20
+ACC.21
 
 # to check prediction against actual value in tabular form
-table(knn.18, test.bone_labels) 
-table(knn.19, test.bone_labels) 
+table(knn.20, test.bone_labels) 
+table(knn.21, test.bone_labels) 
 
 # Zero means no and one means yes to fracture
 # looking at not fractured as positive class
@@ -505,7 +499,7 @@ table(knn.19, test.bone_labels)
 # Make factors so we can do confusion matrix
 test.bone_labels <- factor(test.bone_labels)
 # Create confusion matrix
-confusionMatrix(knn.18, test.bone_labels)
+confusionMatrix(knn.21, test.bone_labels)
 
 
 ```
@@ -518,7 +512,7 @@ k.optm=1
 
 # For loop for accuracy scores
 for (i in 1:25){ 
-    knn.mod <-  knn(train=train.bone, test=test.bone, cl=train.bone_labels, k=i)
+    knn.mod <-  knn(train=train, test=test, cl=train.bone_labels, k=i)
     k.optm[i] <- 100 * sum(test.bone_labels == knn.mod)/NROW(test.bone_labels)
     k=i  
     cat(k, '=', k.optm[i], '\n')   
@@ -529,7 +523,6 @@ plot(k.optm, type='b', xlab='K-Value', ylab='Accuracy level')
 
 
 ```
-
 
 
 
