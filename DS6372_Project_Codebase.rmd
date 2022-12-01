@@ -535,7 +535,7 @@ plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
 
 ```
 
-## This figure shows how test data has been classified using QDA model. The mix of red and black colored shows incorrect classification prediction.
+## This figure shows how test data has been classified using LDA/QDA model. The mix of red and black colored shows incorrect classification prediction.
 
 ###Additonal Item##########
 ## Package KlaR help to create exploratory graph for LDA and QDA .  
