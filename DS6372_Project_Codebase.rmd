@@ -383,29 +383,29 @@ __Complex Logistic Regression__
 
                               __LDA/QDA__ ## only on numeric variables
 ```{r}
+lq <-df[c("age","weight","height","bmi","fracscore","fracture")]
+lq2 <-df[c("age","weight","height")] 
+
 lq_train <- train[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+
 lq_test <- test[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
 
-
-<<<<<<< Updated upstream
-ggpairs(lda_train, aes(color = fracture))
+ggpairs(lq, aes(color = fracture))
 =======
 
 ```
 
-
-## heatmap data set for numerical variables only and selecting
+        ## heatmap data set for numerical variables only and selecting
 ```{r}
+
 library(gplots)
 dflda1<- df[c("age","weight","height","bmi","fracscore")]
 corD <- cor(dflda1)
 heatmap.2(corD,scale ="column",tracecol ="#303030",margin=c(7, 10),cexRow = 0.7,cexCol = 0.7)
 
-
-
 ```
 
-###########Loess plot for numerical variable
+###########Loess plot for numerical variable, except the 
 ```{r}
 df %>%
   ggplot(aes(x = age, y = frac_num)) +
@@ -428,6 +428,18 @@ df %>%
 
 ```
 
+```{r}
+install.packages("MVN")
+library("MVN")
+
+mvn(dflda1,mvnTest ="mardia",univariateTest="AD",multivariatePlot ="qq",multivariateOutlierMethod="quan",showOutliers=T)
+mvn(lq2,mvnTest ="mardia",univariateTest="AD",multivariatePlot ="qq",multivariateOutlierMethod="quan",showOutliers=T)
+
+```
+
+
+
+######EXTRA########
 ##3D plot for numeric variables
 ```{r}
 plot3d( 
@@ -459,6 +471,7 @@ ggplot(g,aes(x=fracture,y=perc,colour=fracture))+
   geom_bar(aes(fill=fracture),show.legend=F,stat="identity")+
   ylab("Proportion of fracture")
  
+
 ```
 
 ###plot(lda.m,col=lq_train$fracture)
@@ -486,15 +499,19 @@ plot(roclda,print.thres=TRUE,print.auc = TRUE)
 ########################################################
 
 
-threshold=0.3
+threshold=0.299
 lda.preds<-factor(ifelse(lda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
-confusionMatrix(data=lda.preds,reference=lda_test$fracture,positive="Yes")
+confusionMatrix(data=lda.preds,reference=lq_test$fracture,positive="Yes")
 
 ```
 
+
+
+
+
     ################################QDA########################
 ```{r}
-qda.m <- qda(fracture~age+weight+height,data=lda_train)
+qda.m <- qda(fracture~age+weight+height,data=lq_train)
 qda.m 
 
 qda.m.pred.train <- predict(qda.m,lq_train)
@@ -507,9 +524,9 @@ qda.m.pred.t
 rocqda=roc(response=lq_test$fracture,predictor=qda.m.pred.t$posterior[,2],levels=c("No","Yes"))
 plot(rocqda,print.thres=TRUE,print.auc = TRUE,main = "QDA ROC")
 
-##from ROC curve the threshold is 0.285~0.29 and AUC of 0.739. TPR(sensitivity),FPR(specificity) the value closer to (0,1) is determined as probabilty threshold . In this case the threshold is 0.29
+##from ROC curve the threshold is 0.285~0.29 and AUC of 0.739. TPR(sensitivity),FPR(specificity) the value closer to (0,1) is determined as probabilty threshold . In this case the threshold is 0.285
 
-threshold=0.29
+threshold=0.285
 qda.preds<-factor(ifelse(qda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
 confusionMatrix(data=qda.preds,reference=lq_test$fracture,positive="Yes")
 
@@ -521,18 +538,29 @@ confusionMatrix(data=qda.preds,reference=lq_test$fracture,positive="Yes")
 ## Prevalence is 29.17%
 
 
-## This figure shows how test data has been classified using QDA model. The mix of red and black colored shows incorrect classification prediction. 
+```
+
+              ###logloss metrics to compare the model######## removing fracscore and bmi give us lower log loss value
+```{r}
+fitControl<-trainControl(method="repeatedcv",number=5,classProbs=TRUE, summaryFunction=mnLogLoss)
+set.seed(1234)
+
+lda.fit <-train(fracture~age+weight+height,data=lq_train,method="lda",trControl=fitControl,
+               metric="logLoss")
+lda.fit
+
+qda.fit <-train(fracture~age+weight+height,data=lq_train,method="qda",trControl=fitControl,
+               metric="logLoss")
+qda.fit
 
 ```
 
-```{r}
-###classification LDA and QDA
 
+###classification LDA and QDA
+```{r}
 par(mfrow=c(2,2))
 plot(lda.m.pred.t$x[,1],lda.m.pred.t$class, col=lq_test$fracture)
-
 plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
-
 ```
 
 ## This figure shows how test data has been classified using LDA/QDA model. The mix of red and black colored shows incorrect classification prediction.
@@ -542,9 +570,9 @@ plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
 ```{r}
 library(klaR)
 
-partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="lda",plot.matrix = TRUE,imageplot=TRUE)
+partimat(as.factor(fracture)~age+weight+height+fracscore+bmi,data =lq_train,method="lda",plot.matrix = TRUE,imageplot=TRUE)
 
-partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="qda",plot.matrix = TRUE,imageplot=TRUE)
+partimat(as.factor(fracture)~age+weight+height+fracscore+bmi,data =lq_train,method="qda",plot.matrix = TRUE,imageplot=TRUE)
 
 
 ```
