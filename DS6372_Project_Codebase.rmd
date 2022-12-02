@@ -570,9 +570,9 @@ plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
 ```{r}
 library(klaR)
 
-partimat(as.factor(fracture)~age+weight+height+fracscore+bmi,data =lq_train,method="lda",plot.matrix = TRUE,imageplot=TRUE)
+partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="lda",plot.matrix = TRUE,imageplot=TRUE)
 
-partimat(as.factor(fracture)~age+weight+height+fracscore+bmi,data =lq_train,method="qda",plot.matrix = TRUE,imageplot=TRUE)
+partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="qda",plot.matrix = TRUE,imageplot=TRUE)
 
 
 ```
