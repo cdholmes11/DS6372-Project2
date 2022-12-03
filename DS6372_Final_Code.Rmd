@@ -1,0 +1,865 @@
+---
+title: "MSDS-6372-Project2"
+author: "Holmes, Karki, Webb"
+date: "11/12/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE)
+```
+
+#
+### Libraries
+```{r load-packages, include=FALSE}
+## Source - https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
+# Package names
+packages <- c("aplore3", "tidyverse", "corrplot", "car", "caTools", "ROCR", "caret", "naniar", "GGally", "rgl", "MVN", "gplots", "MASS", "pROC", "klaR", "class")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+```{r}
+for (p in packages){
+  print(p)
+}
+```
+
+### Outline
+
+We are using the Glow Bonemed dataset from the aplore3 package. This dataset covers the classification problem of whether or not a woman with osteoporosis will have a bone fracture within the first five years of joining the study. The dataset has 500 records with 20 variables. Of those variables, 9 are numeric and 10 are categorical.
+
+We will be applying three diffent classification methods and comparing their performance across six metrics.
+
+Methods
+
+* Logistic Regression
+* LDA/QDA
+* KNN
+
+Metrics
+
+* Sensitivity
+* Specificity
+* Prevalence
+* Positive Predictive Value
+* Negative Predictive Value
+* Area Under ROC curve
+
+```{r include=FALSE}
+df <- glow_bonemed
+summary(df) ## ratio of response (fracture) is 3:1 No to Yes
+str(df)
+dim(df)
+# New column for numeric fracture
+df$frac_num <- ifelse(df$fracture == "Yes", 1, 0)
+table(df$frac_num, df$fracture)
+
+# New data frames for Numeric and Categorical
+num_df <-
+  df %>%
+  dplyr::select(is.numeric)
+str(num_df)
+dim(num_df)
+cat_df <-
+  df %>%
+  select_if(negate(is.numeric))
+str(cat_df)
+dim(cat_df)
+```
+
+
+### EDA
+The overall ratio is 3 to 1 in favor of No fracture. This makes the Yes outcome a fairly rare event for this data set.
+```{r}
+g<-
+  df %>% 
+  group_by(fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))
+g
+
+g %>% ggplot(aes(x=fracture,y=perc,colour=fracture)) +
+  geom_bar(aes(fill=fracture),show.legend=F,stat="identity") +
+  ylab("Proportion of fracture")
+```
+
+
+__Missing Data__
+
+No columns have missing Data.
+```{r}
+gg_miss_var(df)
+```
+#
+#
+__Categorical Variables__
+
+In this section we are looking for two things.
+
+1. Significantly different ratio between the fracture classification variable when grouping by the independent variable
+2. Higher fracture rate in the Yes group in particular factor of the grouped by variable.
+
+In the case of Prior Fracture we see a significantly different ratio between the Yes and No Fracture group. There is an 80/20 split for the No group and a 58/42 split for the Yes group. This is a possible indication of an important variable. The table shows two times higher chance of having a fracture if the woman had a prior fracture. 
+
+```{r}
+options(dplyr.summarise.inform = FALSE)
+g1 <-
+  df %>%
+  group_by(fracture, priorfrac) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g1
+
+g1[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(priorfrac, -perc), y = perc, color = priorfrac)) +
+  geom_bar(aes(fill = priorfrac), stat = "identity") +
+  xlab("Prior Fracture") +
+  ylab("Proportion")
+```
+
+While the overall percentage of fractures for women whose mother had hip fracture is lower than the sample size ratio of .25 for fractures, we do see the ratio double between the Yes and No Fracture group.
+```{r}
+g3 <-
+  df %>%
+  group_by(fracture, momfrac) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g3
+
+g3[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(momfrac, -perc), y = perc, color = momfrac)) +
+  geom_bar(aes(fill = momfrac), stat = "identity") +
+  xlab("Momfrac") +
+  ylab("Proportion")
+```
+
+Another promising variable is Armassit. This variable tracks if Arms are needed to stand from a chair. This is the first variable that shows a higher chance of fracture for the predictor variable Yes than the No. It also shows a significant increase in ratio compared to the No fracture group.
+```{r}
+g4 <-
+  df %>%
+  group_by(fracture, armassist) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g4
+
+g4[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(armassist, -perc), y = perc, color = armassist)) +
+  geom_bar(aes(fill = armassist), stat = "identity") +
+  xlab("Armassist") +
+  ylab("Proportion")
+```
+
+Smoking is an example of a variable with high fracture ratio, but not a high change from the No group. When we look at the ratios, we see over 90% of smokers fracture their leg. However, when we look at the ratio for those who don't smoke, it is also over 90%. It is unlikely that Smoking will be a strong variable in predicting fractures.
+```{r}
+g5 <-
+  df %>%
+  group_by(fracture, smoke) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g5
+
+g5[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(smoke, -perc), y = perc, color = smoke)) +
+  geom_bar(aes(fill = smoke), stat = "identity") +
+  xlab("Smoke") +
+  ylab("Proportion")
+```
+
+The remaining variables show some increase in fractures from the same factor level when comparing No vs. Yes fracture status. There are no variables that stand out as being significantly important to predicting fractures.
+```{r}
+g2 <-
+  df %>%
+  group_by(fracture, premeno) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g2
+
+g2[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(premeno, -perc), y = perc, color = premeno)) +
+  geom_bar(aes(fill = premeno), stat = "identity") +
+  xlab("Premeno") +
+  ylab("Proportion")
+
+g6 <-
+  df %>%
+  group_by(fracture, raterisk) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g6
+
+g6[c(4, 5, 6), ] %>%
+  ggplot(aes(x = reorder(raterisk, -perc), y = perc, color = raterisk)) +
+  geom_bar(aes(fill = raterisk), stat = "identity") +
+  xlab("Raterisk") +
+  ylab("Proportion")
+
+g7 <-
+  df %>%
+  group_by(fracture, bonemed) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g7
+
+g7[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(bonemed, -perc), y = perc, color = bonemed)) +
+  geom_bar(aes(fill = bonemed), stat = "identity") +
+  xlab("Bonemed") +
+  ylab("Proportion")
+
+g8 <-
+  df %>%
+  group_by(fracture, bonemed_fu) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g8
+
+g8[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(bonemed_fu, -perc), y = perc, color = bonemed_fu)) +
+  geom_bar(aes(fill = bonemed_fu), stat = "identity") +
+  xlab("Bonemed_fu") +
+  ylab("Proportion")
+
+g8 <-
+  df %>%
+  group_by(fracture, bonetreat) %>%
+  summarise(cnt = n()) %>%
+  mutate(perc = round(cnt / sum(cnt), 4)) %>%
+  arrange(fracture, desc(perc))
+g8
+
+g8[c(3, 4), ] %>%
+  ggplot(aes(x = reorder(bonetreat, -perc), y = perc, color = bonetreat)) +
+  geom_bar(aes(fill = bonetreat), stat = "identity") +
+  xlab("Bonetreat") +
+  ylab("Proportion")
+```
+
+
+__Numeric Variables__
+
+Similar to the categorical variables, we see some positive signs of variables being important in predicting bone fractures, but none show overwhelming evidence of significance in their Loess plots.
+
+Age, Height, and Fracscore show the most evidence of trend.
+```{r echo = FALSE}
+df %>%
+  ggplot(aes(x = age, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Fracture vs. Age")
+
+df %>%
+  ggplot(aes(x = weight, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Fracture vs. Weight")
+
+df %>%
+  ggplot(aes(x = height, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Fracture vs. Height")
+
+df %>%
+  ggplot(aes(x = bmi, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Fracture vs. BMI")
+
+df %>%
+  ggplot(aes(x = fracscore, y = frac_num)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "loess", span = .8) +
+  ggtitle("Fracture vs. Fracscore")
+```
+#
+We also looked at scatter plots in both 2 and 3 dimensions and found no evidence of clustering. The Fracscore vs Height plot below is indicative of what we saw in both 2 and 3 dimensions for all numeric pairings.
+
+```{r}
+df %>%
+  ggplot(aes(x = height, y = fracscore, color = fracture)) +
+  geom_point()
+```
+
+__Correlation__
+
+When looking at the numeric variable correlation factors, we see strong multicollinearity between Age/Fracscore, BMI/Weight, and Phy_ID/Site_ID. This is corroborated by high VIF scores for these variables.
+```{r}
+M <- cor(num_df[, 1:8])
+corrplot.mixed(M, lower = 'number', upper = 'ellipse', order = 'alphabet')
+
+model <- lm(frac_num ~ ., data = df[, -c(15)])
+vif(model)
+```
+
+### Train/Test Split
+
+We used an 80/20 split with a seed of 123 for all methods.
+```{r}
+set.seed(123)
+# Split data into smaller sets: 80% training, 20%
+ss <- sample(1:2, size = nrow(df), replace = TRUE, prob = c(0.8, 0.2))
+train <- df[ss == 1, ]
+test <- df[ss == 2, ]
+```
+
+### Objective 1
+
+Display the ability to perform EDA and build a logistic regression model for interpretation purposes.
+
+__Simple Logistic Regression__
+
+Removing BMI, Age, and Site ID due to multicollinearity.
+```{r}
+train_sub <-
+  train %>%
+  dplyr::select(-c("sub_id", "bmi", "age", "site_id", "frac_num", "smoke"))
+```
+
+When all variables are included in the model, there are no coefficients with significant p-values. We will have to rely on feature selection to prove out some of what we saw in our EDA.
+```{r echo=TRUE}
+# Logistic Model
+log_model <- glm(fracture ~ ., data = train_sub, family = "binomial")
+coef(summary(log_model))
+```
+
+```{r}
+glm_fwd <- step(log_model, direction = "forward", trace = 0)
+glm_back <- step(log_model, direction = "backward", trace = 0)
+glm_both <- step(log_model, direction = "both", trace = 0)
+```
+
+___Variable Selection___
+
+Forward
+```{r comments = TRUE}
+summary(glm_fwd)
+```
+AIC
+```{r}
+AIC(glm_fwd)
+```
+BIC
+```{r}
+BIC(glm_fwd)
+```
+
+Backward
+```{r}
+summary(glm_back)
+```
+AIC
+```{r}
+AIC(glm_back)
+```
+BIC
+```{r}
+BIC(glm_back)
+```
+
+Both
+```{r}
+summary(glm_both)
+```
+AIC
+```{r}
+AIC(glm_both)
+```
+BIC
+```{r}
+BIC(glm_both)
+```
+
+All methods landed on the same set of variables. In addition to a consensus among the feature selection methods, we also see that the variables that showed the most promising correlation to our dependent variable during EDA. Fracscore and Bonemed_fu showed the lowest p-values at 0.007 and 0.005 respectively. BoneTreat, and Prior Fracture were also found to be significant at the .05 level.
+
+Four variables were found to be significant in the final model.
+
+The odds of having a fracture are 1.90 times higher for women of have had a prior fracture (priorfrac) than those that have not (p-value = 0.026). The 95% confidence interval for this increase is (1.079, 3.348)
+
+The odds of having a fracture are 4.75 times higher for women who receive bone medication at follow-up (bonemed_fu) than for those who did not (p-value = 0.005). The 95% confidence interval for this increase is (1.609, 14.939)
+
+The odds of having a fracture are .31 times lower for women who receive bone medication at both enrollment (bonetreat) and follow-up (p-value = 0.047). The 95% confidence interval for this decrease is (0.094, 0.972)
+
+For a one unit increase in fracscore the odds of fracture increase by a multiplicative factor of 1.16 (p-value = 0.007) with a 95% confidence interval of (1.041, 1.300).
+
+Coefficients
+```{r}
+exp(glm_both$coefficients)
+```
+
+
+Confidence Intervals
+```{r}
+exp(confint(glm_both))
+```
+
+Final Model
+```{r echo=TRUE}
+log_model <-
+  glm(fracture ~ priorfrac + height + momfrac + fracscore + bonemed_fu + bonetreat,
+  data = train_sub, family = "binomial")
+summary(log_model)
+```
+
+In the case of this data set, the model is much more likely to predict No than Yes. This makes sense given the data we found in the EDA portion of our research. There were no variables with obvious correlation to our positive predicted class.
+```{r}
+# Predict test data based on model
+predict_test <- predict(log_model, test, type = "response")
+
+# Changing probabilities
+predict_test_fact <- ifelse(predict_test > 0.5, "Yes", "No")
+   
+# Model Performance
+confusionMatrix(data = as.factor(predict_test_fact), reference = test$fracture)
+```
+For this particular study, there is merit to reducing the threshold for positive prediction below 50%. A case can be made that Specificity is more important than Sensitivity in the case of predicting fractures. It might be more important for the model to capture as many of the Fracture cases at the expense of incorrectly predicting fractures for some women.
+
+In addition to the practical reason for reducing the threshold, our positive classification only makes up 25% of the overall sample. For both of these reasons, we have reduced our threshold in the below model. We found that a threshold that mirrored the sample distribution produced the most balanced results between Sensitivity and Specificity.
+```{r}
+# Predict test data based on model
+predict_test <- predict(log_model, test, type = "response")
+
+# Changing probabilities
+predict_test_fact <- ifelse(predict_test > 0.25, "Yes", "No")
+   
+# Model Performance
+confusionMatrix(data = as.factor(predict_test_fact), reference = test$fracture)
+```
+
+```{r}
+# ROC-AUC Curve
+ROCPred <- prediction(predict_test, test$fracture) 
+ROCPer <- performance(ROCPred, measure = "tpr", x.measure = "fpr")
+   
+auc <- performance(ROCPred, measure = "auc")
+auc <- auc@y.values[[1]]
+   
+# Plotting curve
+plot(ROCPer, colorize = TRUE, 
+     print.cutoffs.at = seq(0.1, by = 0.1), 
+     main = "ROC CURVE")
+abline(a = 0, b = 1)
+   
+auc <- round(auc, 4)
+legend(.6, .4, auc, title = "AUC", cex = 1)
+```
+#
+__Results__
+
+Our final model produced the following metrics.
+
+* Sensitivity = .729
+* Specificity = .625
+* Prevalence = .745
+* Positive Predictive Value = .850
+* Negative Predictive Value = .441
+* Area Under ROC curve = .729
+
+### Objective 2
+
+__KNN__
+
+```{r}
+# See how many women fractured a bone within the first year after joining the study
+table(df$fracture)
+```
+
+```{r}
+# Make a copy of original data as a working copy
+df1 <- glow_bonemed
+
+# one hot encode for categorical variables
+df1$priorfrac<-ifelse(df1$priorfrac=='Yes', 1, 0)
+df1$premeno<-ifelse(df1$premeno=='Yes', 1, 0)
+df1$momfrac<-ifelse(df1$momfrac=='Yes', 1, 0)
+df1$armassist<-ifelse(df1$armassist=='Yes', 1, 0)
+df1$smoke<-ifelse(df1$smoke=='Yes', 1, 0)
+df1$fracture<-ifelse(df1$fracture=='Yes', 1, 0)
+df1$bonemed<-ifelse(df1$bonemed=='Yes', 1, 0)
+df1$bonemed_fu<-ifelse(df1$bonemed_fu=='Yes', 1, 0)
+df1$bonetreat<-ifelse(df1$bonetreat=='Yes', 1, 0)
+df1$raterisk<-as.numeric(factor(df1$raterisk))
+```
+
+```{r}
+# delete columns that probably wont help predict
+df1 <- df1[-c(1, 2, 3)]
+
+# standardize function
+standardize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+# Split data into smaller sets: 80% training, 20%
+ss <- sample(1:2, size = nrow(df), replace = TRUE, prob = c(0.8, 0.2))
+train1 <- df1[ss == 1, ]
+test1 <- df1[ss == 2, ]
+
+# standardize the data
+df1.subset.n<- as.data.frame(lapply(df1[, c(-12)], standardize))
+```
+
+
+```{r}
+# selection of the data
+dat.d <- sample(1:nrow(df1.subset.n), size=nrow(df1.subset.n)*0.816, replace = TRUE) 
+
+# Create a separate dataframe for "Fractured?" feature, which is our target.
+train.bone_labels <- df1[ss == 1, 12]
+test.bone_labels  <- df1[ss == 2, 12]
+```
+
+Number of observations
+```{r}
+NROW(train.bone_labels)
+```
+
+Square root of observations produces a decent k value.
+```{r}
+sqrt(NROW(train.bone_labels))
+```
+
+Below runs the KNN models for k=19 and k=20.
+```{r}
+knn.20 <-  knn(train=train1, test=test1, cl=train.bone_labels, k=20, prob = TRUE)
+knn.21 <-  knn(train=train1, test=test1, cl=train.bone_labels, k=21, prob = TRUE)
+
+```
+
+```{r}
+# Accuracy score for knn 19 & 20
+ACC.20 <- 100 * sum(test.bone_labels == knn.20)/NROW(test.bone_labels)
+ACC.21 <- 100 * sum(test.bone_labels == knn.21)/NROW(test.bone_labels)
+```
+k = 20 Accuracy
+```{r}
+ACC.20
+```
+k = 21 Accuracy
+```{r}
+ACC.21
+```
+
+Here, we check predictions against actual values in tabular form. Zero maps to No and one maps to Yes for fractures.
+```{r}
+table(knn.20, test.bone_labels)
+table(knn.21, test.bone_labels)
+```
+Here, we look at not fractured as positive class
+```{r}
+test.bone_labels <- factor(test.bone_labels)
+confusionMatrix(knn.21, test.bone_labels)
+```
+
+Below is the elbow plot of Accuracy for various k values.
+```{r}
+# declaration to initiate for loop
+i=1
+k.optm=1
+
+# For loop for accuracy scores
+for (i in 1:25){
+    knn.mod <-  knn(train=train1, test=test1, cl=train.bone_labels, k=i)
+    k.optm[i] <- 100 * sum(test.bone_labels == knn.mod)/NROW(test.bone_labels)
+    k=i
+    cat(k, '=', k.optm[i], '\n')
+}
+```
+
+```{r}
+# Plot accuracy for different k
+plot(k.optm, type='b', xlab='K-Value', ylab='Accuracy level')
+```
+
+```{r}
+# ROC-AUC Curve
+ROCPred <- prediction(attributes(knn.21)$prob, test1$fracture) 
+ROCPer <- performance(ROCPred, measure = "tpr", x.measure = "fpr")
+   
+auc <- performance(ROCPred, measure = "auc")
+auc <- auc@y.values[[1]]
+   
+# Plotting curve
+plot(ROCPer, colorize = TRUE, 
+     print.cutoffs.at = seq(0.1, by = 0.1), 
+     main = "ROC CURVE")
+abline(a = 0, b = 1)
+   
+auc <- round(auc, 4)
+legend(.6, .4, auc, title = "AUC", cex = 1)
+```
+
+__Results__
+
+Our final model produced the following metrics.
+
+* Sensitivity = 0.984
+* Specificity = 0.000
+* Prevalence = 0.733
+* Positive Predictive Value = 0.730
+* Negative Predictive Value = 0.000
+* Area Under ROC curve = 0.411
+
+__LDA/QDA__
+
+LDA and QDA only include numeric variables from the data set.
+```{r}
+lq <-df[c("age","weight","height","bmi","fracscore","fracture")]
+lq2 <-df[c("age","weight","height")] 
+
+lq_train <- train[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+
+lq_test <- test[, c("age", "weight", "height", "bmi", "fracscore", "fracture")]
+
+ggpairs(lq, aes(color = fracture))
+```
+
+Below is a heat map for numeric varibles.
+```{r}
+dflda1<- df[c("age","weight","height","bmi","fracscore")]
+corD <- cor(dflda1)
+heatmap.2(corD,scale ="column",tracecol ="#303030",margin=c(7, 10),cexRow = 0.7,cexCol = 0.7)
+```
+
+Below are the outliers for all numeric variables. 
+```{r}
+mvn(dflda1,multivariateOutlierMethod="quan",showOutliers=T)
+```
+
+
+Here are the outliers for just Age, Height, Weight.
+```{r}
+mvn(lq2,multivariateOutlierMethod="quan",showOutliers=T)
+```
+
+__LDA__
+
+The coefficients of LDA provides the linear combination of variables that are used to form LDA decision rule. The output group means indicates the mean values of different feature when they fall to a particular response class.
+```{r}
+lda.m <- lda(fracture~age+weight+height,data=lq_train)
+lda.m 
+```
+
+
+```{r}
+lda.m.pred.train <- predict(lda.m,lq_train)
+ldahist(lda.m.pred.train$x[,1],g=lda.m.pred.train$class)
+
+lda.m.pred.t <- predict(lda.m,lq_test)
+ldahist(lda.m.pred.t$x[,1],g=lda.m.pred.t$class)
+```
+
+Below are the ROC curve and confusion matrix for LDA.
+```{r}
+## roc curve
+roclda=roc(response=lq_test$fracture,predictor=lda.m.pred.t$posterior[,2],levels=c("No","Yes"))
+plot(roclda,print.thres=TRUE,print.auc = TRUE)
+
+threshold=0.299
+lda.preds<-factor(ifelse(lda.m.pred.t$posterior[,2] > threshold,"Yes","No"))
+confusionMatrix(data=lda.preds,reference=lq_test$fracture,positive="Yes")
+```
+__Results__
+
+Our final model produced the following metrics.
+
+* Sensitivity = .541
+* Specificity = .786
+* Prevalence = .255
+* Positive Predictive Value = .464
+* Negative Predictive Value = .833
+* Area Under ROC curve = .682
+
+
+__QDA__
+
+From ROC curve the threshold is 0.285~0.29. TPR(sensitivity), FPR(specificity) the value closer to (0,1) is determined as probability threshold. In this case the threshold is 0.285.
+```{r}
+qda.m <- qda(fracture~age+weight+height,data=lq_train)
+
+qda.m.pred.train <- predict(qda.m,lq_train)
+
+qda.m.pred.t <- predict(qda.m,lq_test)
+
+rocqda=roc(response=lq_test$fracture,predictor=qda.m.pred.t$posterior[,2],levels=c("No","Yes"))
+plot(rocqda,print.thres=TRUE,print.auc = TRUE,main = "QDA ROC")
+
+threshold=0.3
+qda.preds<-factor(ifelse(qda.m.pred.t$posterior[,2] >threshold,"Yes","No"))
+confusionMatrix(data=qda.preds,reference=lq_test$fracture,positive="Yes")
+```
+__Results__
+
+Our final model produced the following metrics.
+
+* Sensitivity = .500
+* Specificity = .800
+* Prevalence = .255
+* Positive Predictive Value = .462
+* Negative Predictive Value = .824
+* Area Under ROC curve = .683
+
+LDA vs. QDA logloss evaluation.
+```{r}
+fitControl<-trainControl(method="repeatedcv",number=5,classProbs=TRUE, summaryFunction=mnLogLoss)
+
+lda.fit <-train(fracture~age+weight+height,data=lq_train,method="lda",trControl=fitControl,
+               metric="logLoss")
+lda.fit
+
+qda.fit <-train(fracture~age+weight+height,data=lq_train,method="qda",trControl=fitControl,
+               metric="logLoss")
+qda.fit
+```
+
+
+This figure shows how test data has been classified using LDA/QDA model. The mix of red and black colored shows incorrect classification prediction. As you can see in each plot, there are no clear areas that don't have a mixture of each color.
+```{r}
+par(mfrow=c(2,2))
+plot(lda.m.pred.t$x[,1],lda.m.pred.t$class, col=lq_test$fracture)
+plot(qda.m.pred.t$posterior[,2],qda.m.pred.t$class, col=lq_test$fracture)
+```
+
+__Additonal Item__
+Package KlaR help to create exploratory graph for LDA and QDA .  
+```{r}
+partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="lda",plot.matrix = TRUE,imageplot=TRUE)
+partimat(as.factor(fracture)~age+weight+height,data =lq_train,method="qda",plot.matrix = TRUE,imageplot=TRUE)
+```
+
+
+__Complex Logistic Regression__
+```{r echo=TRUE}
+# Logistic Model
+log_model <- glm(fracture ~ priorfrac + momfrac + bonemed_fu + bonetreat + premeno + armassist + raterisk + bonemed + poly(height, degree=3) + poly(weight, degree=3) + poly(fracscore, degree=3) + poly(phy_id, degree=3), data = train_sub, family = "binomial")
+coef(summary(log_model))
+```
+
+```{r}
+glm_both <- step(log_model, direction = "both", trace = 0)
+```
+
+```{r echo = TRUE}
+summary(glm_both)
+```
+AIC
+```{r echo = TRUE}
+AIC(glm_both)
+```
+BIC
+```{r echo = TRUE}
+BIC(glm_both)
+```
+
+Coefficients
+```{r}
+exp(glm_both$coefficients)
+```
+Confidence Intervals
+```{r}
+exp(confint(glm_both))
+```
+#
+Final Model
+```{r echo = TRUE}
+log_model <- glm(fracture ~ priorfrac + momfrac + bonemed_fu + bonetreat + poly(fracscore, degree=3), data = train_sub, family = "binomial")
+summary(log_model)
+```
+
+```{r}
+# Predict test data based on model
+predict_test <- predict(log_model, test, type = "response")
+
+# Changing probabilities
+predict_test_fact <- ifelse(predict_test > 0.25, "Yes", "No")
+```
+
+```{r echo=TRUE}   
+# Model Performance
+confusionMatrix(data = as.factor(predict_test_fact), reference = test$fracture)
+```
+
+```{r}
+# ROC-AUC Curve
+ROCPred <- prediction(predict_test, test$fracture) 
+ROCPer <- performance(ROCPred, measure = "tpr", x.measure = "fpr")
+   
+auc <- performance(ROCPred, measure = "auc")
+auc <- auc@y.values[[1]]
+   
+# Plotting curve
+plot(ROCPer, colorize = TRUE, 
+     print.cutoffs.at = seq(0.1, by = 0.1), 
+     main = "ROC CURVE")
+abline(a = 0, b = 1)
+   
+auc <- round(auc, 4)
+legend(.6, .4, auc, title = "AUC", cex = 1)
+```
+#
+__Results__
+
+Our final model produced the following metrics.
+
+* Sensitivity = .714
+* Specificity = .625
+* Prevalence = .745
+* Positive Predictive Value = .848
+* Negative Predictive Value = .429
+* Area Under ROC curve = .733
+
+The net result when adding polynomial terms was a negligible change in metrics for an increased complixity of model. The suggested model is still the simple logistic model from Objective 1.
+
+                                  
+Overlap ROC curve
+```{r}
+p1 <- prediction(predict_test, test$fracture) %>%
+   performance(measure = "tpr", x.measure = "fpr")
+
+p2 <- prediction(lda.m.pred.t$posterior[,2], lq_test$fracture) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+
+p3 <- prediction(qda.m.pred.t$posterior[,2], lq_test$fracture) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+
+p4 <- prediction(attributes(knn.21)$prob, test1$fracture) %>%
+  performance(measure = "tpr", x.measure = "fpr")
+
+plot(p1, col = "red")
+plot(p2,add= TRUE ,col = "blue")
+plot(p3, add = TRUE, col = "green")
+plot(p4, add = TRUE, col = "orange")
+legend("bottomright",
+       legend=c("Logistic -AUC = 0.733", "LDA -AUC = 0.682","QDA -AUC = 0.683", "KNN = 0.413 "),
+       col=c("red", "blue","green", "orange"),
+       lwd=2, cex =0.7, xpd = TRUE, horiz = FALSE)
+```
+After comparing all 4 models, we believe the complex Logistic model provides the best classification for both the practical and statistical significance. It provides the best balance of Sensitivity and Specificity while also having the highest AUROC score.
+
+
+| Tables                    | Logistic | LDA   | QDA   | KNN   |
+|---------------------------|:--------:|------:|:-----:|:-----:|
+| Sensitivity               | 0.714    | 0.541 | 0.500 | 0.984 |
+| Specificity               | 0.625    | 0.786 | 0.800 | 0.000 |
+| Prevalence                | 0.745    | 0.255 | 0.255 | 0.733 |
+| Positive Predictive Value | 0.848    | 0.464 | 0.462 | 0.730 |
+| Negative Predictive Value | 0.429    | 0.833 | 0.824 | 0.000 |
+| Area Under ROC curve      | 0.733    | 0.682 | 0.683 | 0.411 |
